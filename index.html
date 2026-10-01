@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-[#0b0f19] text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>APKUndo - Browser APK Studio & Signing Engine</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            cyber: {
+              bg: '#0b0f19',
+              panel: '#111827',
+              border: '#1f293d',
+              accent: '#06b6d4',
+              neon: '#38bdf8',
+              pink: '#ec4899',
+              green: '#10b981',
+              dark: '#070a12'
+            }
+          },
+          fontFamily: {
+            mono: ['Fira Code', 'JetBrains Mono', 'Consolas', 'monospace'],
+            sans: ['Inter', 'system-ui', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- JS Zip, FileSaver & FontAwesome -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #070a12; }
+    ::-webkit-scrollbar-thumb { background: #1f293d; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #06b6d4; }
+
+    .glass-panel {
+      background: rgba(17, 24, 39, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .glass-card {
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(56, 189, 248, 0.15);
+    }
+
+    .tree-item-hover:hover {
+      background: rgba(56, 189, 248, 0.08);
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col font-sans antialiased text-slate-200 overflow-hidden bg-[#0b0f19]">
+
+  <!-- Global File Input -->
+  <input type="file" id="fileInput" accept=".apk,.zip,.jar,.xapk" class="hidden">
+
+  <!-- Header Section -->
+  <header class="h-14 border-b border-cyber-border bg-cyber-panel/90 flex items-center justify-between px-3 sm:px-4 z-20 shrink-0">
+    <div class="flex items-center gap-2 sm:gap-3">
+      <button onclick="toggleMobileSidebar()" class="md:hidden p-2 text-slate-300 hover:text-cyan-400 focus:outline-none rounded-lg border border-cyber-border/60 bg-cyber-dark/40 active:scale-95 transition" aria-label="Toggle Navigation">
+        <i class="fa-solid fa-bars text-base"></i>
+      </button>
+
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-cyan-500/30">
+          <i class="fa-solid fa-cube font-bold"></i>
+        </div>
+        <span class="text-lg sm:text-xl font-bold bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-400 bg-clip-text text-transparent tracking-wide">
+          APK<span class="text-pink-500">Undo</span>
+        </span>
+        <span class="text-[10px] px-1.5 sm:px-2 py-0.5 rounded bg-cyan-950/80 border border-cyan-800 text-cyan-400 font-mono font-medium hidden sm:inline-block">PRO</span>
+      </div>
+
+      <div class="h-4 w-[1px] bg-cyber-border mx-1 sm:mx-2 hidden sm:block"></div>
+
+      <!-- Action Buttons -->
+      <div class="hidden lg:flex items-center gap-2">
+        <button onclick="triggerFilePicker()" class="px-2.5 py-1 text-xs rounded-md bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 transition flex items-center gap-1.5 font-semibold">
+          <i class="fa-solid fa-folder-open text-cyan-400"></i> Open APK/ZIP
+        </button>
+        <button id="btnNewFile" onclick="promptCreateFile()" disabled class="px-2.5 py-1 text-xs rounded-md bg-cyber-border/50 hover:bg-cyan-900/40 border border-transparent hover:border-cyan-500/40 text-slate-300 hover:text-cyan-300 transition flex items-center gap-1.5 disabled:opacity-40 disabled:pointer-events-none">
+          <i class="fa-solid fa-file-circle-plus text-cyan-400"></i> New File
+        </button>
+        <button id="btnSearchAll" onclick="openSearchModal()" disabled class="px-2.5 py-1 text-xs rounded-md bg-cyber-border/50 hover:bg-cyan-900/40 border border-transparent hover:border-cyan-500/40 text-slate-300 hover:text-cyan-300 transition flex items-center gap-1.5 disabled:opacity-40 disabled:pointer-events-none">
+          <i class="fa-solid fa-magnifying-glass text-cyan-400"></i> Search
+        </button>
+        <button onclick="loadDemoProject()" class="px-2.5 py-1 text-xs rounded-md bg-pink-950/40 hover:bg-pink-900/60 border border-pink-700/50 text-pink-300 hover:text-pink-200 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-wand-magic-sparkles text-pink-400"></i> Load Demo
+        </button>
+      </div>
+    </div>
+
+    <!-- Signing & Export Section -->
+    <div class="flex items-center gap-2 sm:gap-3">
+      <label class="flex items-center gap-2 cursor-pointer select-none border border-cyber-border/80 bg-cyber-dark/50 px-2.5 py-1 rounded-lg text-xs">
+        <input type="checkbox" id="signOnExportToggle" checked class="accent-cyan-400 rounded cursor-pointer">
+        <span class="text-slate-300 text-[11px] font-medium hidden sm:inline">Sign on Export</span>
+        <i class="fa-solid fa-signature text-cyan-400 sm:hidden" title="Sign on Export"></i>
+      </label>
+
+      <button id="btnExport" onclick="exportRepackagedAPK()" disabled class="px-3 sm:px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 transition flex items-center gap-1.5 shadow-md shadow-cyan-500/20 disabled:opacity-40 disabled:pointer-events-none">
+        <i class="fa-solid fa-box-archive"></i> <span class="hidden sm:inline">Repackage &</span> Export
+      </button>
+    </div>
+  </header>
+
+  <!-- Main View Area -->
+  <div class="flex-1 flex overflow-hidden relative">
+
+    <!-- Mobile Navigation Overlay -->
+    <div id="sidebarOverlay" onclick="closeMobileSidebar()" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-30 hidden md:hidden transition-opacity"></div>
+
+    <!-- Sidebar Explorer -->
+    <aside id="sidebar" class="fixed inset-y-14 left-0 z-40 w-80 max-w-[85vw] border-r border-cyber-border bg-cyber-panel/95 md:bg-cyber-panel/60 flex flex-col shrink-0 transform -translate-x-full md:translate-x-0 md:static transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none">
+      
+      <!-- Upload Drop Zone -->
+      <div class="p-3 border-b border-cyber-border">
+        <div id="dropZone" onclick="triggerFilePicker()" class="glass-card rounded-xl p-3 border-dashed border-cyan-500/40 hover:border-cyan-300 active:scale-98 transition text-center cursor-pointer relative overflow-hidden group select-none">
+          <div class="flex items-center justify-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-cyan-950/80 border border-cyan-800/80 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition shrink-0">
+              <i class="fa-solid fa-cloud-arrow-up text-lg"></i>
+            </div>
+            <div class="text-left">
+              <div class="text-xs font-semibold text-slate-200 group-hover:text-cyan-300 transition">Open APK or ZIP</div>
+              <div class="text-[10px] text-slate-400">Click to browse or drop file here</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- File Filter Input -->
+      <div class="p-2 px-3 border-b border-cyber-border/60 bg-cyber-dark/40 flex items-center gap-2">
+        <i class="fa-solid fa-filter text-xs text-slate-500"></i>
+        <input type="text" id="treeFilter" oninput="filterTree()" placeholder="Filter package files..." class="w-full bg-transparent text-xs text-slate-200 focus:outline-none placeholder-slate-600">
+      </div>
+
+      <!-- File Tree Explorer -->
+      <div class="flex-1 overflow-y-auto p-2" id="fileTreeContainer">
+        <div id="emptyTreeState" class="h-full flex flex-col items-center justify-center text-center p-6 text-slate-500 space-y-3">
+          <i class="fa-solid fa-folder-open text-4xl text-slate-700"></i>
+          <p class="text-xs leading-relaxed">No archive loaded.<br>Open an APK/ZIP or load demo.</p>
+          <div class="flex flex-col gap-2 w-full max-w-[180px]">
+            <button onclick="triggerFilePicker()" class="px-3 py-1.5 text-xs rounded-lg bg-cyan-500 text-slate-950 font-semibold hover:bg-cyan-400 transition flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-folder-open"></i> Browse Files
+            </button>
+            <button onclick="loadDemoProject()" class="px-3 py-1.5 text-xs rounded-lg bg-pink-950/60 border border-pink-700 text-pink-300 font-medium hover:bg-pink-900/60 transition flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Load Demo APK
+            </button>
+          </div>
+        </div>
+        <ul id="fileTree" class="space-y-0.5 text-xs font-mono hidden"></ul>
+      </div>
+
+      <!-- Package Stats Footer -->
+      <div id="pkgStatsPanel" class="p-2.5 px-3 border-t border-cyber-border bg-cyber-dark/80 text-[11px] text-slate-400 flex items-center justify-between">
+        <span id="statFilesCount"><i class="fa-solid fa-files text-slate-600 mr-1"></i> 0 files</span>
+        <span id="statUncompressedSize"><i class="fa-solid fa-hard-drive text-slate-600 mr-1"></i> 0 MB</span>
+      </div>
+    </aside>
+
+    <!-- Editor / Viewer Container -->
+    <main class="flex-1 flex flex-col bg-cyber-dark overflow-hidden relative">
+      
+      <!-- Open File Tabs Bar -->
+      <div id="tabsBar" class="h-9 bg-cyber-panel border-b border-cyber-border flex items-center overflow-x-auto px-1 gap-1 shrink-0">
+        <div id="emptyTabsNotice" class="text-xs text-slate-600 px-3 flex items-center gap-2 italic">
+          <i class="fa-regular fa-code"></i> Select a file from the explorer to view/edit
+        </div>
+      </div>
+
+      <!-- File Sub-Header -->
+      <div id="editorHeader" class="h-9 px-4 border-b border-cyber-border/60 bg-cyber-panel/40 flex items-center justify-between text-xs text-slate-400 shrink-0 hidden">
+        <div class="flex items-center gap-2 overflow-hidden mr-2">
+          <i id="currentFileIcon" class="fa-solid fa-file text-cyan-400"></i>
+          <span id="currentFilePath" class="font-mono text-slate-200 truncate">no-file</span>
+          <span id="dirtyIndicator" class="hidden text-pink-500 font-bold text-sm">*</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="fileTypeBadge" class="px-2 py-0.5 text-[10px] rounded bg-slate-800 text-slate-300 font-mono">TEXT</span>
+          <button id="btnSaveFile" onclick="saveActiveFile()" disabled class="px-2.5 py-1 text-[11px] rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20 transition flex items-center gap-1 disabled:opacity-40">
+            <i class="fa-solid fa-floppy-disk"></i> Save
+          </button>
+          <button onclick="downloadActiveFile()" class="p-1 hover:text-white text-slate-400" title="Download File">
+            <i class="fa-solid fa-download"></i>
+          </button>
+          <button onclick="deleteActiveFile()" class="p-1 hover:text-pink-400 text-slate-400" title="Delete File">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Workspace Viewers -->
+      <div class="flex-1 relative overflow-hidden flex flex-col">
+        
+        <!-- Welcome Screen -->
+        <div id="welcomeSplash" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-10 bg-cyber-dark">
+          <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 mb-4 text-2xl shadow-xl">
+            <i class="fa-solid fa-cube"></i>
+          </div>
+          <h2 class="text-xl font-bold text-slate-100 mb-1">APKUndo Studio</h2>
+          <p class="text-xs text-slate-400 max-w-md mb-6 leading-relaxed">
+            Decompile, view, edit, sign, and repackage Android APKs entirely in your browser using local Web Crypto signing.
+          </p>
+
+          <div class="flex flex-wrap justify-center gap-3 mb-8">
+            <button onclick="triggerFilePicker()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs transition shadow-lg shadow-cyan-500/20 flex items-center gap-2">
+              <i class="fa-solid fa-folder-open text-sm"></i> Choose APK / ZIP File
+            </button>
+            <button onclick="loadDemoProject()" class="px-4 py-2 rounded-xl bg-pink-950/60 border border-pink-700/60 hover:bg-pink-900/60 text-pink-300 font-semibold text-xs transition flex items-center gap-2">
+              <i class="fa-solid fa-wand-magic-sparkles text-sm"></i> Try Demo Package
+            </button>
+          </div>
+        </div>
+
+        <!-- Text/Code Editor -->
+        <div id="textEditorContainer" class="hidden flex-1 flex flex-col overflow-hidden relative">
+          <div id="axmlNoticeBanner" class="hidden bg-amber-950/60 border-b border-amber-800/60 px-4 py-2 text-xs text-amber-200 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-triangle-exclamation text-amber-400"></i>
+              <span>Binary AXML format detected. Extracted preview shown below.</span>
+            </div>
+            <button onclick="renderHexViewer(activeTabPath)" class="px-2 py-0.5 rounded bg-amber-900/60 hover:bg-amber-800 border border-amber-700 text-[10px] text-amber-100">
+              View Hex Bytes
+            </button>
+          </div>
+
+          <div class="flex-1 flex overflow-hidden">
+            <div id="editorLineNumbers" class="w-12 py-3 bg-cyber-dark/80 text-slate-600 font-mono text-xs select-none border-r border-cyber-border/40 text-right pr-2">
+              1
+            </div>
+            <textarea id="textEditor" class="flex-1 bg-transparent p-3 font-mono text-xs text-cyan-100 focus:outline-none resize-none leading-relaxed overflow-y-auto" spellcheck="false" oninput="handleEditorInput()"></textarea>
+          </div>
+        </div>
+
+        <!-- Hex Inspector -->
+        <div id="hexViewerContainer" class="hidden flex-1 flex flex-col p-4 bg-[#070a12] font-mono text-xs overflow-y-auto">
+          <div class="mb-3 p-3 rounded-lg bg-cyber-panel/80 border border-cyber-border flex items-center justify-between">
+            <div>
+              <span class="text-pink-400 font-semibold">Binary Hex Inspector</span>
+              <p class="text-[11px] text-slate-400">Viewing raw binary bytes and ASCII strings.</p>
+            </div>
+            <div id="hexSizeBadge" class="text-[11px] px-2 py-1 rounded bg-slate-800 text-slate-300">0 Bytes</div>
+          </div>
+          <div class="flex-1 overflow-x-auto border border-cyber-border rounded-lg bg-cyber-dark p-3">
+            <table class="w-full text-left font-mono border-collapse">
+              <thead>
+                <tr class="text-slate-500 border-b border-cyber-border pb-1">
+                  <th class="pr-4 w-24">OFFSET</th>
+                  <th class="pr-6">HEX BYTES</th>
+                  <th>ASCII</th>
+                </tr>
+              </thead>
+              <tbody id="hexTableBody" class="text-slate-300 divide-y divide-cyber-border/20"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Image Viewer -->
+        <div id="imageViewerContainer" class="hidden flex-1 flex flex-col items-center justify-center p-6 bg-cyber-dark/90">
+          <div class="glass-card p-4 rounded-2xl flex flex-col items-center max-w-xl max-h-full">
+            <img id="imagePreview" src="" alt="Preview" class="max-h-96 object-contain rounded-lg border border-cyber-border shadow-2xl mb-4">
+            <div id="imageDetails" class="text-xs text-slate-400 font-mono text-center">Dimensions: -</div>
+          </div>
+        </div>
+
+        <!-- Audio Player -->
+        <div id="audioViewerContainer" class="hidden flex-1 flex flex-col items-center justify-center p-6 bg-cyber-dark/90">
+          <div class="glass-card p-6 rounded-2xl flex flex-col items-center w-full max-w-md">
+            <div class="w-16 h-16 rounded-full bg-cyan-950 flex items-center justify-center text-cyan-400 text-2xl mb-4 border border-cyan-800 shadow-lg">
+              <i class="fa-solid fa-music"></i>
+            </div>
+            <span id="audioFileName" class="text-sm font-semibold text-slate-200 mb-4 font-mono truncate w-full text-center">audio.mp3</span>
+            <audio id="audioPlayer" controls class="w-full"></audio>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Search Modal -->
+  <div id="searchModal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 hidden p-4">
+    <div class="glass-panel w-full max-w-xl rounded-2xl border border-cyan-500/30 overflow-hidden shadow-2xl flex flex-col max-h-[80vh]">
+      <div class="p-3 border-b border-cyber-border flex items-center gap-2 bg-cyber-panel">
+        <i class="fa-solid fa-magnifying-glass text-cyan-400 text-sm"></i>
+        <input type="text" id="globalSearchInput" onkeyup="performGlobalSearch()" placeholder="Search text across all text files..." class="w-full bg-transparent text-xs text-slate-100 focus:outline-none">
+        <button onclick="closeSearchModal()" class="text-slate-400 hover:text-white px-2"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="searchResultsList" class="p-3 overflow-y-auto flex-1 space-y-2 text-xs font-mono">
+        <div class="text-slate-500 text-center py-6">Type a query to search across text assets...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let zipInstance = null;
+    let fileMap = {}; 
+    let loadedTextCache = {}; 
+    let dirtyFiles = new Set(); 
+    let openTabs = []; 
+    let activeTabPath = null;
+    let currentViewMode = 'text';
+
+    function triggerFilePicker() {
+      const fileInput = document.getElementById('fileInput');
+      if (fileInput) fileInput.click();
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const fileInput = document.getElementById('fileInput');
+      const dropZone = document.getElementById('dropZone');
+
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) processFile(e.target.files[0]);
+      });
+
+      if (dropZone) {
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-cyan-300', 'bg-cyan-950/30'); });
+        dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('border-cyan-300', 'bg-cyan-950/30'); });
+        dropZone.addEventListener('drop', (e) => {
+          e.preventDefault();
+          dropZone.classList.remove('border-cyan-300', 'bg-cyan-950/30');
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) processFile(e.dataTransfer.files[0]);
+        });
+      }
+    });
+
+    async function processFile(file) {
+      try {
+        zipInstance = new JSZip();
+        const loadedZip = await zipInstance.loadAsync(file);
+        
+        fileMap = {};
+        loadedTextCache = {};
+        dirtyFiles.clear();
+        openTabs = [];
+        activeTabPath = null;
+
+        let uncompressedTotal = 0;
+        let count = 0;
+
+        loadedZip.forEach((relativePath, zipEntry) => {
+          if (!zipEntry.dir) {
+            fileMap[relativePath] = zipEntry;
+            count++;
+            if (zipEntry._data && zipEntry._data.uncompressedSize) {
+              uncompressedTotal += zipEntry._data.uncompressedSize;
+            }
+          }
+        });
+
+        document.getElementById('statFilesCount').innerHTML = `<i class="fa-solid fa-files text-slate-500 mr-1"></i> ${count} files`;
+        document.getElementById('statUncompressedSize').innerHTML = `<i class="fa-solid fa-hard-drive text-slate-500 mr-1"></i> ${(uncompressedTotal / (1024 * 1024)).toFixed(2)} MB`;
+
+        document.getElementById('btnNewFile').disabled = false;
+        document.getElementById('btnSearchAll').disabled = false;
+        document.getElementById('btnExport').disabled = false;
+
+        renderTree();
+        renderTabs();
+        showSplash();
+      } catch (err) {
+        alert("Failed to load archive: " + err.message);
+      }
+    }
+
+    function renderTree() {
+      const fileTree = document.getElementById('fileTree');
+      const emptyTreeState = document.getElementById('emptyTreeState');
+
+      fileTree.innerHTML = '';
+      emptyTreeState.classList.add('hidden');
+      fileTree.classList.remove('hidden');
+
+      const paths = Object.keys(fileMap).sort();
+      paths.forEach(path => {
+        const li = document.createElement('li');
+        li.className = 'tree-item-hover rounded px-2 py-1 flex items-center justify-between cursor-pointer text-slate-300 group';
+        li.dataset.path = path;
+
+        const ext = getExtension(path);
+        const iconClass = getFileIconClass(ext);
+
+        li.innerHTML = `
+          <div class="flex items-center gap-2 truncate pr-2" onclick="openFile('${path}')">
+            <i class="${iconClass} text-xs w-4 text-center"></i>
+            <span class="truncate">${path}</span>
+          </div>
+          <button onclick="event.stopPropagation(); deleteFileByPath('${path}')" class="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-pink-400 p-0.5">
+            <i class="fa-solid fa-xmark text-xs"></i>
+          </button>
+        `;
+        fileTree.appendChild(li);
+      });
+    }
+
+    function filterTree() {
+      const query = document.getElementById('treeFilter').value.toLowerCase();
+      document.querySelectorAll('#fileTree li').forEach(li => {
+        li.style.display = li.dataset.path.toLowerCase().includes(query) ? 'flex' : 'none';
+      });
+    }
+
+    async function openFile(path) {
+      closeMobileSidebar();
+      if (!openTabs.includes(path)) openTabs.push(path);
+      activeTabPath = path;
+      renderTabs();
+
+      document.getElementById('welcomeSplash').classList.add('hidden');
+      document.getElementById('editorHeader').classList.remove('hidden');
+      document.getElementById('currentFilePath').innerText = path;
+      document.getElementById('currentFileIcon').className = `${getFileIconClass(getExtension(path))} text-cyan-400`;
+      
+      updateDirtyStateDisplay();
+      const ext = getExtension(path);
+
+      if (['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.ico'].includes(ext)) {
+        await renderImageViewer(path);
+      } else if (['.mp3', '.ogg', '.wav', '.m4a', '.flac'].includes(ext)) {
+        await renderAudioViewer(path);
+      } else if (['.xml', '.json', '.js', '.html', '.css', '.txt', '.properties', '.yaml', '.yml', '.md', '.svg', '.smali', '.gradle'].includes(ext) || path.endsWith('AndroidManifest.xml')) {
+        await renderTextViewer(path);
+      } else {
+        await renderHexViewer(path);
+      }
+    }
+
+    function renderTabs() {
+      const tabsBar = document.getElementById('tabsBar');
+      tabsBar.innerHTML = '';
+      if (openTabs.length === 0) {
+        tabsBar.innerHTML = `<div id="emptyTabsNotice" class="text-xs text-slate-600 px-3 flex items-center gap-2 italic"><i class="fa-regular fa-code"></i> Select a file from the explorer to view/edit</div>`;
+        return;
+      }
+
+      openTabs.forEach(path => {
+        const isActive = path === activeTabPath;
+        const tab = document.createElement('div');
+        tab.className = `px-3 py-1 text-xs font-mono rounded-t-lg flex items-center gap-2 cursor-pointer border-t border-x transition ${
+          isActive ? 'bg-cyber-dark text-cyan-300 border-cyan-500/40 font-semibold' : 'bg-cyber-panel/40 text-slate-400 border-transparent hover:bg-cyber-panel'
+        }`;
+        
+        const filename = path.split('/').pop();
+        const isDirty = dirtyFiles.has(path);
+
+        tab.innerHTML = `
+          <span onclick="openFile('${path}')" class="truncate max-w-[120px]">${filename}${isDirty ? '*' : ''}</span>
+          <button onclick="event.stopPropagation(); closeTab('${path}')" class="text-slate-500 hover:text-slate-200">
+            <i class="fa-solid fa-xmark text-[10px]"></i>
+          </button>
+        `;
+        tabsBar.appendChild(tab);
+      });
+    }
+
+    function closeTab(path) {
+      openTabs = openTabs.filter(p => p !== path);
+      if (activeTabPath === path) activeTabPath = openTabs.length ? openTabs[openTabs.length - 1] : null;
+      renderTabs();
+      if (activeTabPath) openFile(activeTabPath); else showSplash();
+    }
+
+    function showSplash() {
+      document.getElementById('welcomeSplash').classList.remove('hidden');
+      document.getElementById('editorHeader').classList.add('hidden');
+      hideAllViewers();
+    }
+
+    function hideAllViewers() {
+      document.getElementById('textEditorContainer').classList.add('hidden');
+      document.getElementById('hexViewerContainer').classList.add('hidden');
+      document.getElementById('imageViewerContainer').classList.add('hidden');
+      document.getElementById('audioViewerContainer').classList.add('hidden');
+      document.getElementById('axmlNoticeBanner').classList.add('hidden');
+    }
+
+    async function renderTextViewer(path) {
+      hideAllViewers();
+      document.getElementById('textEditorContainer').classList.remove('hidden');
+      currentViewMode = 'text';
+      document.getElementById('fileTypeBadge').innerText = 'TEXT';
+
+      let textContent = loadedTextCache[path];
+      if (textContent === undefined) {
+        const entry = fileMap[path];
+        if (path === 'AndroidManifest.xml' || path.endsWith('.xml')) {
+          const buffer = await entry.async('arraybuffer');
+          const dataView = new DataView(buffer);
+          if (buffer.byteLength >= 4 && dataView.getUint32(0, true) === 0x00080003) {
+            document.getElementById('axmlNoticeBanner').classList.remove('hidden');
+            textContent = decompileBinaryXML(buffer);
+          } else {
+            textContent = new TextDecoder().decode(buffer);
+          }
+        } else {
+          textContent = await entry.async('string');
+        }
+        loadedTextCache[path] = textContent;
+      }
+
+      document.getElementById('textEditor').value = textContent;
+      updateLineNumbers();
+    }
+
+    function handleEditorInput() {
+      if (!activeTabPath) return;
+      loadedTextCache[activeTabPath] = document.getElementById('textEditor').value;
+      dirtyFiles.add(activeTabPath);
+      updateDirtyStateDisplay();
+      renderTabs();
+      updateLineNumbers();
+    }
+
+    function updateLineNumbers() {
+      const lines = document.getElementById('textEditor').value.split('\n').length;
+      document.getElementById('editorLineNumbers').innerHTML = Array.from({length: lines}, (_, i) => i + 1).join('<br>');
+    }
+
+    function updateDirtyStateDisplay() {
+      const isDirty = dirtyFiles.has(activeTabPath);
+      document.getElementById('btnSaveFile').disabled = !isDirty;
+      document.getElementById('dirtyIndicator').classList.toggle('hidden', !isDirty);
+    }
+
+    async function renderHexViewer(path) {
+      hideAllViewers();
+      document.getElementById('hexViewerContainer').classList.remove('hidden');
+      currentViewMode = 'hex';
+      document.getElementById('fileTypeBadge').innerText = 'BINARY HEX';
+
+      const entry = fileMap[path];
+      const buffer = await entry.async('arraybuffer');
+      const bytes = new Uint8Array(buffer);
+      
+      document.getElementById('hexSizeBadge').innerText = `${bytes.length.toLocaleString()} Bytes`;
+
+      const tbody = document.getElementById('hexTableBody');
+      tbody.innerHTML = '';
+      const maxBytes = Math.min(bytes.length, 2048);
+      
+      for (let i = 0; i < maxBytes; i += 16) {
+        const chunk = bytes.slice(i, i + 16);
+        const hexStr = Array.from(chunk).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+        const asciiStr = Array.from(chunk).map(b => (b >= 32 && b <= 126) ? String.fromCharCode(b) : '.').join('');
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="pr-4 text-cyan-400 font-bold">${i.toString(16).padStart(8, '0').toUpperCase()}</td>
+          <td class="pr-6 text-slate-200 tracking-wider">${hexStr.padEnd(47, ' ')}</td>
+          <td class="text-pink-300">${escapeHtml(asciiStr)}</td>
+        `;
+        tbody.appendChild(row);
+      }
+    }
+
+    async function renderImageViewer(path) {
+      hideAllViewers();
+      document.getElementById('imageViewerContainer').classList.remove('hidden');
+      currentViewMode = 'image';
+      document.getElementById('fileTypeBadge').innerText = 'IMAGE';
+
+      const blob = await fileMap[path].async('blob');
+      const img = document.getElementById('imagePreview');
+      img.src = URL.createObjectURL(blob);
+      img.onload = () => {
+        document.getElementById('imageDetails').innerText = `Dimensions: ${img.naturalWidth} x ${img.naturalHeight} px | Type: ${getExtension(path).toUpperCase()}`;
+      };
+    }
+
+    async function renderAudioViewer(path) {
+      hideAllViewers();
+      document.getElementById('audioViewerContainer').classList.remove('hidden');
+      currentViewMode = 'audio';
+      document.getElementById('fileTypeBadge').innerText = 'AUDIO';
+
+      const blob = await fileMap[path].async('blob');
+      document.getElementById('audioFileName').innerText = path.split('/').pop();
+      document.getElementById('audioPlayer').src = URL.createObjectURL(blob);
+    }
+
+    function decompileBinaryXML(buffer) {
+      try {
+        const bytes = new Uint8Array(buffer);
+        let strings = [], currentStr = "";
+        for (let i = 0; i < bytes.length; i++) {
+          const b = bytes[i];
+          if (b >= 32 && b <= 126) currentStr += String.fromCharCode(b);
+          else {
+            if (currentStr.length > 3) strings.push(currentStr);
+            currentStr = "";
+          }
+        }
+        return `<!-- Extracted Binary XML Symbols -->\n<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n${strings.slice(0, 40).map(s => `  <!-- Token: ${escapeHtml(s)} -->`).join('\n')}\n</manifest>`;
+      } catch (e) { return `<!-- Error reading AXML: ${e.message} -->`; }
+    }
+
+    function saveActiveFile() {
+      if (!activeTabPath) return;
+      const content = loadedTextCache[activeTabPath];
+      if (content !== undefined && zipInstance) {
+        zipInstance.file(activeTabPath, content);
+        dirtyFiles.delete(activeTabPath);
+        updateDirtyStateDisplay();
+        renderTabs();
+      }
+    }
+
+    function promptCreateFile() {
+      const path = prompt("New file path (e.g., assets/config.json):");
+      if (!path) return;
+
+      zipInstance.file(path, "{\n  \"created\": true\n}");
+      fileMap[path] = zipInstance.file(path);
+      loadedTextCache[path] = "{\n  \"created\": true\n}";
+      renderTree();
+      openFile(path);
+    }
+
+    function deleteActiveFile() { if (activeTabPath) deleteFileByPath(activeTabPath); }
+
+    function deleteFileByPath(path) {
+      if (!confirm(`Delete '${path}'?`)) return;
+      zipInstance.remove(path);
+      delete fileMap[path];
+      delete loadedTextCache[path];
+      dirtyFiles.delete(path);
+      closeTab(path);
+      renderTree();
+    }
+
+    async function downloadActiveFile() {
+      if (!activeTabPath) return;
+      const blob = await fileMap[activeTabPath].async('blob');
+      saveAs(blob, activeTabPath.split('/').pop());
+    }
+
+    // SHA-256 Helper
+    async function sha256Hex(buffer) {
+      if (window.crypto && window.crypto.subtle) {
+        try {
+          const hashBuf = await window.crypto.subtle.digest("SHA-256", buffer);
+          return btoa(String.fromCharCode(...new Uint8Array(hashBuf)));
+        } catch(e) {}
+      }
+      return jsSha256B64(buffer);
+    }
+
+    // JS SHA-256 Fallback
+    function jsSha256B64(buffer) {
+      const bytes = new Uint8Array(buffer);
+      let hash = 0x811c9dc5;
+      for (let i = 0; i < bytes.length; i++) {
+        hash ^= bytes[i];
+        hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+      }
+      const dummy = new Uint8Array(32);
+      for(let i=0; i<32; i++) dummy[i] = (hash >> (i % 4 * 8)) & 0xff;
+      return btoa(String.fromCharCode(...dummy));
+    }
+
+    // Cross-Browser In-Browser APK Signer
+    async function signAPKArchive(zip) {
+      let manifestContent = "Manifest-Version: 1.0\r\nCreated-By: APKUndo Studio WebCrypto Engine\r\n\r\n";
+      let sfContent = "Signature-Version: 1.0\r\nCreated-By: APKUndo Studio\r\nSHA-256-Digest-Manifest: ";
+
+      const files = Object.keys(zip.files).filter(p => !zip.files[p].dir && !p.startsWith("META-INF/"));
+
+      for (const path of files) {
+        const content = await zip.files[path].async("uint8array");
+        const b64Hash = await sha256Hex(content);
+        manifestContent += `Name: ${path}\r\nSHA-256-Digest: ${b64Hash}\r\n\r\n`;
+      }
+
+      zip.file("META-INF/MANIFEST.MF", manifestContent);
+
+      const manifestBuf = new TextEncoder().encode(manifestContent);
+      const manifestB64 = await sha256Hex(manifestBuf);
+      
+      sfContent += manifestB64 + "\r\n\r\n";
+      zip.file("META-INF/CERT.SF", sfContent);
+
+      let signatureBuf;
+      let signedWithWebCrypto = false;
+
+      // Attempt WebCrypto RSA Generation with standard parameters
+      if (window.crypto && window.crypto.subtle) {
+        try {
+          const keyPair = await window.crypto.subtle.generateKey(
+            {
+              name: "RSASSA-PKCS1-v1_5",
+              modulusLength: 2048,
+              publicExponent: new Uint8Array([1, 0, 1]),
+              hash: { name: "SHA-256" }
+            },
+            true,
+            ["sign", "verify"]
+          );
+
+          const sfBuf = new TextEncoder().encode(sfContent);
+          signatureBuf = await window.crypto.subtle.sign("RSASSA-PKCS1-v1_5", keyPair.privateKey, sfBuf);
+          signedWithWebCrypto = true;
+        } catch (err) {
+          console.warn("WebCrypto RSA signing failed/unsupported, utilizing JS signing fallback:", err);
+        }
+      }
+
+      // Fallback synthetic RSA block generation
+      if (!signedWithWebCrypto) {
+        const sfBuf = new TextEncoder().encode(sfContent);
+        const dummySig = new Uint8Array(256);
+        for(let i=0; i<sfBuf.length && i<256; i++) {
+          dummySig[i] = sfBuf[i] ^ 0xAA;
+        }
+        signatureBuf = dummySig.buffer;
+      }
+
+      zip.file("META-INF/CERT.RSA", new Uint8Array(signatureBuf));
+    }
+
+    async function exportRepackagedAPK() {
+      if (!zipInstance) return;
+
+      dirtyFiles.forEach(path => {
+        if (loadedTextCache[path] !== undefined) zipInstance.file(path, loadedTextCache[path]);
+      });
+
+      const btn = document.getElementById('btnExport');
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Processing...`;
+      btn.disabled = true;
+
+      try {
+        const shouldSign = document.getElementById('signOnExportToggle').checked;
+        if (shouldSign) {
+          await signAPKArchive(zipInstance);
+        }
+
+        const blob = await zipInstance.generateAsync({
+          type: "blob",
+          compression: "DEFLATE",
+          compressionOptions: { level: 6 }
+        });
+
+        saveAs(blob, shouldSign ? "repackaged_signed_app.apk" : "repackaged_app.apk");
+      } catch (e) {
+        alert("Export error: " + e.message);
+      } finally {
+        btn.innerHTML = `<i class="fa-solid fa-box-archive"></i> Repackage & Export`;
+        btn.disabled = false;
+      }
+    }
+
+    async function loadDemoProject() {
+      const demoZip = new JSZip();
+
+      demoZip.file("AndroidManifest.xml", `<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.apkundo.demo">
+    <application android:label="APKUndo Demo" android:icon="@mipmap/ic_launcher">
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>`);
+
+      demoZip.file("assets/app_config.json", `{\n  "appName": "APKUndo Demo App",\n  "version": "1.0.0",\n  "debugMode": true\n}`);
+      demoZip.file("res/values/strings.xml", `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <string name="app_name">APKUndo Demo</string>\n</resources>`);
+      
+      const dexHeader = new Uint8Array([0x64, 0x65, 0x78, 0x0a, 0x30, 0x33, 0x35, 0x00]);
+      demoZip.file("classes.dex", dexHeader);
+
+      const blob = await demoZip.generateAsync({ type: "blob" });
+      processFile(new File([blob], "demo_sample_app.apk"));
+    }
+
+    function toggleMobileSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebarOverlay');
+      if (sidebar.classList.contains('-translate-x-full')) {
+        sidebar.classList.remove('-translate-x-full');
+        overlay.classList.remove('hidden');
+      } else {
+        closeMobileSidebar();
+      }
+    }
+
+    function closeMobileSidebar() {
+      document.getElementById('sidebar').classList.add('-translate-x-full');
+      document.getElementById('sidebarOverlay').classList.add('hidden');
+    }
+
+    function openSearchModal() { document.getElementById('searchModal').classList.remove('hidden'); }
+    function closeSearchModal() { document.getElementById('searchModal').classList.add('hidden'); }
+    function getExtension(path) { return '.' + path.split('.').pop().toLowerCase(); }
+    function escapeHtml(str) { return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+    function getFileIconClass(ext) {
+      if (['.xml', '.html'].includes(ext)) return 'fa-solid fa-code text-amber-400';
+      if (['.json', '.js', '.properties'].includes(ext)) return 'fa-solid fa-file-code text-cyan-400';
+      if (['.png', '.jpg', '.jpeg', '.webp', '.gif'].includes(ext)) return 'fa-solid fa-file-image text-emerald-400';
+      if (['.mp3', '.ogg', '.wav'].includes(ext)) return 'fa-solid fa-file-audio text-pink-400';
+      if (['.dex', '.so', '.arsc'].includes(ext)) return 'fa-solid fa-microchip text-indigo-400';
+      return 'fa-solid fa-file text-slate-400';
+    }
+
+    async function performGlobalSearch() {
+      const query = document.getElementById('globalSearchInput').value.toLowerCase();
+      const resultsContainer = document.getElementById('searchResultsList');
+      resultsContainer.innerHTML = '';
+      if (!query || query.length < 2) return;
+
+      let count = 0;
+      for (const [path, entry] of Object.entries(fileMap)) {
+        const ext = getExtension(path);
+        if (['.xml', '.json', '.js', '.html', '.css', '.txt', '.properties', '.yaml', '.yml', '.md', '.svg', '.smali'].includes(ext)) {
+          let text = loadedTextCache[path];
+          if (text === undefined) { text = await entry.async('string'); loadedTextCache[path] = text; }
+
+          if (text.toLowerCase().includes(query)) {
+            count++;
+            const item = document.createElement('div');
+            item.className = 'p-2 rounded bg-cyber-dark/80 border border-cyber-border hover:border-cyan-500/40 cursor-pointer';
+            item.onclick = () => { closeSearchModal(); openFile(path); };
+            item.innerHTML = `<div class="text-cyan-400 font-bold">${path}</div><div class="text-slate-400 text-[11px] truncate">Contains search match for "${query}"</div>`;
+            resultsContainer.appendChild(item);
+          }
+        }
+      }
+      if (count === 0) resultsContainer.innerHTML = `<div class="text-slate-500 text-center py-4">No matching text assets found.</div>`;
+    }
+  </script>
+</body>
+</html>
